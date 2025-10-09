@@ -659,3 +659,234 @@ Evo ti **cheat sheet tabela** za memoriju i stack u **Expo Router-u** 👇
 ---
 
 👉 Ako želiš, mogu da ti nacrtam **vizuelni dijagram sa kutijama** (stack pre/posle za push, replace, back) da bukvalno vidiš kako se ekrani slažu i brišu. Hoćeš i to?
+
+Da — **Expo Router** može da otkrije naziv trenutne stranice (ekrana), i to na više načina, u zavisnosti od toga **šta tačno želiš** (npr. ime rute, putanju, segment, parametre).  
+Evo detaljno kako to funkcioniše 👇
+
+---
+
+### 🧭 1. Dohvatanje trenutne rute pomoću `useRouter`, `useSegments` ili `usePathname`
+
+#### ✅ `usePathname()`
+
+Najjednostavniji način da vidiš “naziv” stranice (tj. putanju).
+
+```tsx
+import { usePathname } from 'expo-router'
+
+export default function MyScreen() {
+  const pathname = usePathname()
+
+  console.log(pathname) // npr. "/settings/profile"
+
+  return null
+}
+```
+
+- Ako si na stranici `app/settings/profile.tsx`, vratiće `/settings/profile`.
+    
+- Možeš da koristiš `pathname.split('/')` da izdvojiš samo poslednji deo, tj. “naziv” ekrana:
+    
+
+```tsx
+const screenName = pathname.split('/').pop()
+console.log(screenName) // "profile"
+```
+
+---
+
+### 🧩 2. Ako koristiš **layouts** (`_layout.tsx`) i želiš ime trenutnog segmenta
+
+Koristi **`useSegments()`**:
+
+```tsx
+import { useSegments } from 'expo-router'
+
+export default function Layout() {
+  const segments = useSegments()
+
+  console.log(segments) // npr. ["settings", "profile"]
+
+  const current = segments[segments.length - 1]
+  console.log(current) // "profile"
+
+  return null
+}
+```
+
+To je korisno ako imaš ugnježdene rute (nested routes) i želiš precizno da znaš u kom “segmentu” si.
+
+---
+
+### 🧠 3. Ako ti treba ime rute za navigaciju ili logiku (npr. analytics, header title…)
+
+Možeš da koristiš `useLocalSearchParams()` ako ti treba parametar rute (npr. `[id].tsx`):
+
+```tsx
+import { useLocalSearchParams } from 'expo-router'
+
+export default function Details() {
+  const { id } = useLocalSearchParams()
+
+  console.log(id) // vrednost iz rute, npr. "42"
+}
+```
+
+---
+
+### 🧰 4. Kombinovano — logički “naziv ekrana”
+
+Ako želiš univerzalnu funkciju koja vraća “naziv ekrana” (za npr. analytics logove), možeš ovako:
+
+```tsx
+import { usePathname } from 'expo-router'
+
+export function useScreenName() {
+  const pathname = usePathname()
+  const segments = pathname.split('/').filter(Boolean)
+  return segments.pop() || 'home'
+}
+```
+
+Koristiš u bilo kom ekranu:
+
+```tsx
+const screenName = useScreenName()
+console.log('Trenutni ekran:', screenName)
+```
+
+---
+
+### 📊 5. Za integraciju sa Analytics (npr. PostHog, Firebase, Amplitude...)
+
+Možeš da slušaš promene rute:
+
+```tsx
+import { usePathname } from 'expo-router'
+import { useEffect } from 'react'
+
+export function useScreenTracking() {
+  const pathname = usePathname()
+
+  useEffect(() => {
+    // tvoj kod za analytics event
+    console.log('Screen viewed:', pathname)
+  }, [pathname])
+}
+```
+
+---
+
+Super — to je odlična ideja 👏  
+Evo kako možemo to da uradimo: napraviću **vizuelni dijagram u tekstualnom formatu (kutije + strelice)** koji pokazuje:
+
+- kako _Stack Navigator_ u **Expo Router v6** funkcioniše,
+    
+- šta se dešava kada koristiš `push`, `replace`, ili `back`,
+    
+- i kako `layout` + `index` učestvuju u tome.
+    
+
+---
+
+## 🧱 OSNOVNI STACK (layout + index)
+
+```
+┌──────────────────────────────┐
+│ app/_layout.tsx              │   ← Root layout sa <Stack>
+│ ──────────────────────────── │
+│   <Slot />                   │   ← Mesto gde se ubacuje aktivna ruta
+└──────────────────────────────┘
+           │
+           ▼
+┌──────────────────────────────┐
+│ app/index.tsx                │   ← Home screen (ruta "/")
+└──────────────────────────────┘
+```
+
+➡️ Kada pokreneš app, `layout` se učita **jednom**, a `index.tsx` se ubaci u `<Slot />`.
+
+---
+
+## 📚 Kada koristiš `router.push("/details")`
+
+```
+STACK PRE:
+┌────────────┐
+│ index.tsx  │  ← Home
+└────────────┘
+
+STACK POSLE:
+┌────────────┐
+│ index.tsx  │  ← Home
+├────────────┤
+│ details.tsx│  ← Nova stranica (dodato na vrh)
+└────────────┘
+```
+
+➡️ `push` **dodaje novi ekran na vrh stacka**  
+🔙 `router.back()` te vraća nazad (briše gornji ekran).
+
+---
+
+## 🔄 Kada koristiš `router.replace("/details")`
+
+```
+STACK PRE:
+┌────────────┐
+│ index.tsx  │
+└────────────┘
+
+STACK POSLE:
+┌────────────┐
+│ details.tsx│  ← Stari ekran zamenjen novim
+└────────────┘
+```
+
+➡️ `replace` **briše trenutni ekran i ubacuje novi** (ne možeš se vratiti nazad).
+
+---
+
+## ⬅️ Kada koristiš `router.back()`
+
+```
+STACK PRE:
+┌────────────┐
+│ index.tsx  │
+├────────────┤
+│ details.tsx│
+└────────────┘
+
+STACK POSLE:
+┌────────────┐
+│ index.tsx  │  ← Vraćeno na prethodni ekran
+└────────────┘
+```
+
+➡️ `back()` uklanja zadnji ekran iz stacka.
+
+---
+
+## 💡 Uloga `_layout.tsx` ovde
+
+Zamisli `_layout.tsx` kao okvir (navigation container):
+
+```
+┌──────────────────────────────┐
+│ Root _layout (Stack)         │
+│ ──────────────────────────── │
+│   ┌────────────┐             │
+│   │ index.tsx  │             │
+│   └────────────┘             │
+│   ┌────────────┐             │
+│   │ details.tsx│             │
+│   └────────────┘             │
+└──────────────────────────────┘
+```
+
+Layout ostaje u memoriji, dok se sadržaj `<Slot />` menja pri navigaciji (`push`, `replace`, `back`).
+
+---
+
+Ako želiš, mogu da ti napravim **grafički dijagram** (kutije sa strelicama kao slika, npr. za Notion prezentaciju), gde se vidi i `layout`, `index`, `router.push/replace/back`.  
+Hoćeš da to generišem kao vizuelnu sliku (sa obojenim boxovima i strelicama)?
